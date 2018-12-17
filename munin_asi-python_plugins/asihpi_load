@@ -1,0 +1,28 @@
+#!/bin/bash
+
+PLUGINNAME="asihpi_load"
+CARD=`/usr/local/bin/hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
+
+case $1 in
+   config)
+        cat <<EOM
+graph_title AudioScience $CARD DSP load
+graph_args --base 1000 -l 0
+graph_scale no
+graph_category sound
+graph_vlabel temperature in ºC
+graph_info AudioScience ASIHPI driver card DSP load in %
+${PLUGINNAME}.info ASIHPI DSP Load
+${PLUGINNAME}.label load %
+${PLUGINNAME}.warning 70
+${PLUGINNAME}.critical 85
+EOM
+        exit 0;;
+esac
+
+LEVEL=`/usr/local/bin/hpicontrol.py cget 10 | grep '\-\-int value' | awk '{print $3}'`
+
+echo -n "$PLUGINNAME.value "
+echo "$LEVEL"
+
+

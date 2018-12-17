@@ -1,0 +1,21 @@
+#!/bin/sh
+
+case $1 in
+   config)
+        cat <<'EOM'
+graph_title Envy24-0 input level meter
+graph_args --base 1000 -l 0
+graph_scale no
+graph_category sound
+graph_vlabel peak meter
+graph_info Sound peak meter level at the envy24 pcm input device
+ossenvy24in.info Input level meter
+ossenvy24in.label peak
+EOM
+        exit 0;;
+esac
+
+echo -n "ossenvy24in.value "
+echo $(($(ossmix -d 0 -D |grep ENVY24_IN |awk -F "=" '{print $NF}')))
+
+

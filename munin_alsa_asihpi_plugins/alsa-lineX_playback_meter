@@ -1,0 +1,27 @@
+#!/bin/bash
+
+AMIXERCAPTUREDEVICE="Line 0 Playback Meter"
+PLUGINNAME=`echo "${AMIXERCAPTUREDEVICE}" | sed -e 's/ /_/g'`
+ALSACARDINDEX=0
+
+case $1 in
+   config)
+        cat <<EOM
+graph_title ALSA asihpi ${AMIXERCAPTUREDEVICE}
+graph_args --base 1000 -l 0
+graph_scale no
+graph_category sound
+graph_vlabel percent from maximum card level
+graph_info $AMIXERCAPTUREDEVICE at ALSA ASIHPI card $ALSACARDEVICE
+$PLUGINNAME.info $AMIXERCAPTUREDEVICE
+$PLUGINNAME.label percent
+EOM
+        exit 0;;
+esac
+
+LEVEL=`amixer -c "${ALSACARDINDEX}" sget "${AMIXERCAPTUREDEVICE}" 2> /dev/null | grep % | awk '{print $NF}' | sed 's/[^0-9]*//g' | awk 'NF{sum+=$1} END { if (NR > 0) print sum / NR }' | xargs printf "%.*f\n" 0`
+
+echo -n "$PLUGINNAME.value "
+echo "$LEVEL"
+
+

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+PLUGINNAME="asihpi_temp"
+CARD=`hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
+
+case $1 in
+   config)
+        cat <<EOM
+graph_title AudioScience $CARD board temperature
+graph_args --base 1000 -l 0
+graph_scale no
+graph_category sound
+graph_vlabel temperature in ºC
+graph_info AudioScience ASIHPI driver card Temperature Sensor Read in ºC
+${PLUGINNAME}.info ASIHPI Temp
+${PLUGINNAME}.label temperature ºC
+${PLUGINNAME}.warning 65
+${PLUGINNAME}.critical 75
+EOM
+        exit 0;;
+esac
+
+LEVEL=`hpicontrol.py cget 11 | grep '\-\-float value' | awk '{print $3}'`
+
+echo -n "$PLUGINNAME.value "
+echo "$LEVEL"
+
