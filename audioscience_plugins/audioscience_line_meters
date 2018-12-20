@@ -1,0 +1,60 @@
+#!/bin/bash
+
+CARD=`/usr/local/bin/hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
+ALSACARDINDEX=0
+
+if [ "$CARD" == "ASI5720" ]; then
+        IN=2
+        OUT=2
+elif [ "$CARD" == "ASI5740" ]; then
+        IN=4
+        OUT=4
+elif [ "$CARD" == "ASI5788" ]; then
+        IN=8
+        OUT=8
+else
+        exit 0
+fi
+
+case $1 in
+   config)
+        cat <<EOM
+graph_title AudioScience Line Meters
+graph_args --base 1000 -l 0
+graph_scale no
+graph_category sound
+graph_vlabel percent from maximum card level
+graph_info Playback and Record Line Meters
+EOM
+
+	for (( i=0; i<$IN; i++   ))
+	do
+		echo "line${i}_capture.label line ${i} capture"
+                echo "line${i}_capture.warning 75"
+                echo "line${i}_capture.critical 90"
+	done
+
+	for (( i=0; i<$OUT; i++   ))
+	do
+                echo "line${i}_playback.label line ${i} playback"
+                echo "line${i}_playback.warning 75"
+                echo "line${i}_playback.critical 90"
+	done
+
+        exit 0;;
+esac
+
+for (( i=0; i<$IN; i++   ))
+do
+        LEVEL=`amixer -c "${ALSACARDINDEX}" sget "Line $i Capture Meter" 2> /dev/null | grep % | awk '{print $NF}' | sed 's/[^0-9]*//g' | awk 'NF{sum+=$1} END { if (NR > 0) print sum / NR }' | xargs printf "%.*f\n" 0`
+        echo -n "line${i}_capture.value "
+        echo "$LEVEL"
+done
+
+for (( i=0; i<$OUT; i++   ))
+do
+        LEVEL=`amixer -c "${ALSACARDINDEX}" sget "Line $i Playback Meter" 2> /dev/null | grep % | awk '{print $NF}' | sed 's/[^0-9]*//g' | awk 'NF{sum+=$1} END { if (NR > 0) print sum / NR }' | xargs printf "%.*f\n" 0`
+        echo -n "line${i}_playback.value "
+        echo "$LEVEL"
+done
+

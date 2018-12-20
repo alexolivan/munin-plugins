@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PLUGINNAME="asihpi_temp"
-CARD=`hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
+CARD=`/usr/local/bin/hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
 
 case $1 in
    config)
