@@ -1,12 +1,12 @@
 #!/bin/bash
 
-CARD=`/usr/local/bin/hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
 ALSACARDINDEX=0
+CARD=`/usr/local/bin/hpicontrol.py -a ${ALSACARDINDEX} info | head -n 1 | awk '{print $3}' | sed 's/,*$//g'`
 
-if [ "$CARD" == "ASI5720" ]; then
+if [ "$CARD" == "ASI5620" ] || [ "$CARD" == "5720" ]; then
         IN=2
         OUT=2
-elif [ "$CARD" == "ASI5740" ]; then
+elif [ "$CARD" == "ASI5640" ] || [ "$CARD" == "ASI5740" ]; then
         IN=4
         OUT=4
 elif [ "$CARD" == "ASI5788" ]; then
