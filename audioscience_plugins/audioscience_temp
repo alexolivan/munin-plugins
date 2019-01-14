@@ -1,7 +1,8 @@
 #!/bin/bash
 
 PLUGINNAME="asihpi_temp"
-CARD=`/usr/local/bin/hpicontrol.py cget 1 | grep '\-\-cstring value' | awk '{print $3}'`
+HPICONTROL="/usr/local/bin/hpicontrol.py"
+CARD=`${HPICONTROL} cget 1 info | head -n 1 | awk '{print $3}' | sed 's/,*$//g'`
 
 case $1 in
    config)
@@ -20,7 +21,11 @@ EOM
         exit 0;;
 esac
 
-LEVEL=`hpicontrol.py cget 11 | grep '\-\-float value' | awk '{print $3}'`
+if [ "$CARD" == "ASI5720" ] || [ "$CARD" == "5740" ] || [ "$CARD" == "5788" ]; then
+    LEVEL=`${HPICONTROL} cget 11 | grep '\-\-float value' | awk '{print $3}'`
+else
+    LEVEL=0
+fi
 
 echo -n "$PLUGINNAME.value "
 echo "$LEVEL"
