@@ -1,0 +1,251 @@
+#! /usr/bin/python3
+# -*- coding: iso-8859-1 -*-
+
+# Nginx RTMP module stats munin plugin
+# Author: Alejandro Olivan Alvarez
+
+
+#################
+# Configuration #
+#################
+# Target NGINX server and listen port
+# Just canonical name, no http:// nor ending /, include port number if required
+host = "10.20.10.73"
+# RTMP module stats location and stats file
+rtmpStatsPath = "/rtmp-stat/stat.xsl"
+# optional HTTP-auth authentication creds
+username = ""
+password = ""
+
+#######################
+# Magic happens below #
+#######################
+import os.path, time, sys
+import requests
+import pprint
+from xml.dom import minidom
+import xml.etree.ElementTree as ET
+
+host = "http://" + host + rtmpStatsPath
+
+# Connect to NGINX RTMP API and grab the actual DATA
+def requestData():
+    if username and password:
+        req = requests.get(host, auth=(username, password))
+    else:
+        req = requests.get(host)
+    return req
+
+
+# Parse XML request reply into a useable dict.
+def parseData(req):
+    try:
+        root = ET.fromstring(req.text.encode('utf-8'))
+        plain_xml_string = str(ET.tostring(root, encoding='utf-8').decode('utf-8'))
+        #print("\nDEBUG: parsed plain response was:\n" + plain_xml_string + "\n")
+
+        dictData = {}
+        dictData.update({"RX": int(root.findall("bw_in")[0].text)})
+        dictData.update({"TX": int(root.findall("bw_out")[0].text)})
+        totalClients = 0
+        totalPublishers = 0
+        dictData.update({"applications": {}})
+        for server in root.iter('server'):
+            for application in server:
+                appname = application.findall("name")[0].text
+                dictData["applications"].update({appname: {}})
+                for live in application.findall("live"):
+                    totalClients += int(live.findall("nclients")[0].text)
+                    appRX = 0
+                    appTX = 0
+                    appPublishers = 0
+                    dictData["applications"][appname].update({"TotalClients": int(live.findall("nclients")[0].text)})
+                    dictData["applications"][appname].update({"streams": {}})
+                    for stream in live.findall("stream"):
+                        streamname = stream.findall("name")[0].text
+                        streamRX = int(stream.findall("bw_in")[0].text)
+                        streamTX = int(stream.findall("bw_out")[0].text)
+                        streamPublishers = 0
+                        for client in stream.findall("client"):
+                            if client.findall("publishing"):
+                                streamPublishers += 1
+                                appPublishers +=1
+                                totalPublishers += 1
+                        appRX += streamRX
+                        appTX += streamTX
+                        dictData["applications"][appname]["streams"].update({streamname: {
+                            "RX": streamRX,
+                            "TX": streamTX,
+                            "Publishers": streamPublishers,
+                            "TotalClients": int(stream.findall("nclients")[0].text)
+                        }})
+                    dictData["applications"][appname].update({"Publishers": appPublishers})
+                    dictData["applications"][appname].update({"TX": appTX})
+                    dictData["applications"][appname].update({"RX": appRX})
+            dictData.update({"TotalClients": totalClients})
+            dictData.update({"Publishers": totalPublishers})
+        return dictData
+
+    except Exception as ex:
+        print("WARN: Caught exception: " + ex)
+        return None
+
+# Print munin plugin Configuration
+def printConfig(data):
+    #pprint.pprint("DEBUG: dumping parsed dict from XML\n" + data)
+
+    # Print connections dashboard plugin configuration.
+    # Iterate applications to print app labels
+    print("multigraph rtmpconnections")
+    print("graph_title RTMP Connections Summary")
+    print("graph_category streaming")
+    print("graph_vlabel Connections (-) Publishers / Players (+))")
+    print("graph_args --base 1000")
+    print("total_neg.graph no")
+    print("total.label Total")
+    print("total.negative total_neg")
+    graph_order = "total_neg total"
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        graph_order += " " + appname + "_neg " + appname
+        print(appname + "_neg.graph no")
+        print(appname + ".label " + appname)
+        print(appname + ".negative " + appname + "_neg")
+    print("graph_order " + graph_order)
+
+    # Iterate again applications to print nested stream graphs configurations.
+    # Iterate streams within apps to print stream labels
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        print("\nmultigraph rtmpconnections." + appname)
+        print("graph_title RTMP Stream Connections @ " + appname)
+        print("graph_category streaming")
+        print("graph_vlabel Connections (-) Publishers / Players (+))")
+        print("graph_args --base 1000")
+        print("total_neg.graph no")
+        print("total.label Total")
+        print("total.negative total_neg")
+        graph_order = "total_neg total"
+        for stream, streamdata in appdata["streams"].items():
+            streamname = stream.replace("-", "_")
+            graph_order += " " + streamname + "_neg " + streamname
+            print(streamname + "_neg.graph no")
+            print(streamname + ".label " + streamname)
+            print(streamname + ".negative " + streamname + "_neg")
+        print("graph_order " + graph_order)
+
+    # Print traffic dashboard plugin configuration.
+    # Iterate applications to print app labels
+    print("\nmultigraph rtmptraffic")
+    print("graph_title RTMP Traffic Summary")
+    print("graph_category streaming")
+    print("graph_vlabel Bandwidth (-) In / Out (+))")
+    print("graph_args --base 1024")
+    print("total_neg.graph no")
+    print("total.label Total")
+    print("total.negative total_neg")
+    graph_order = "total_neg total"
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        graph_order += " " + appname + "_neg " + appname
+        print(appname + "_neg.graph no")
+        print(appname + ".label " + appname)
+        print(appname + ".negative " + appname + "_neg")
+    print("graph_order " + graph_order)
+
+    # Iterate again applications to print nested stream graphs configurations.
+    # Iterate streams within apps to print stream labels
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        print("\nmultigraph rtmptraffic." + appname)
+        print("graph_title RTMP Stream Traffic @ " + appname)
+        print("graph_category streaming")
+        print("graph_vlabel Bandwidth (-) In / Out (+))")
+        print("graph_args --base 1024")
+        print("total_neg.graph no")
+        print("total.label Total")
+        print("total.negative total_neg")
+        graph_order = "total_neg total"
+        for stream, streamdata in appdata["streams"].items():
+            streamname = stream.replace("-", "_")
+            graph_order += " " + streamname + "_neg " + streamname
+            print(streamname + "_neg.graph no")
+            print(streamname + ".label " + streamname)
+            print(streamname + ".negative " + streamname + "_neg")
+        print("graph_order " + graph_order)
+
+
+# Print munin plugin values
+def printValues(data):
+    #pprint.pprint("DEBUG: dumping parsed dict from XML\n" + data)
+
+    # Print connections dashboard plugin values.
+    # Iterate applications to print app values
+    print("multigraph rtmpconnections")
+    print("total_neg.value " + str(data["Publishers"]))
+    print("total.value " + str(data["TotalClients"]))
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        print(appname + "_neg.value " + str(appdata["Publishers"]))
+        print(appname + ".value " + str(appdata["TotalClients"]))
+
+    # Iterate again applications to print nested graphs stream values.
+    # Iterate streams within apps to print stream values
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        print("\nmultigraph rtmpconnections." + appname)
+        print("total_neg.value " + str(appdata["Publishers"]))
+        print("total.value " + str(appdata["TotalClients"]))
+        for stream, streamdata in appdata["streams"].items():
+            streamname = stream.replace("-", "_")
+            print(streamname + "_neg.value " + str(streamdata["Publishers"]))
+            print(streamname + ".value " + str(streamdata["TotalClients"]))
+
+    # Print traffic dashboard plugin values.
+    # Iterate applications to print app values
+    print("\nmultigraph rtmptraffic")
+    print("total_neg.value " + str(data["RX"]))
+    print("total.value " + str(data["TX"]))
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        print(appname + "_neg.value " + str(appdata["RX"]))
+        print(appname + ".value " + str(appdata["TX"]))
+
+    # Iterate again applications to print nested graphs stream values.
+    # Iterate streams within apps to print stream values
+    for app, appdata in data["applications"].items():
+        appname = app.replace("-", "_")
+        print("\nmultigraph rtmptraffic." + appname)
+        print("total_neg.value " + str(appdata["RX"]))
+        print("total.value " + str(appdata["TX"]))
+        for stream, streamdata in appdata["streams"].items():
+            streamname = stream.replace("-", "_")
+            print(streamname + "_neg.value " + str(streamdata["RX"]))
+            print(streamname + ".value " + str(streamdata["TX"]))
+
+# Parse command line arguments and proceed accordingly
+def nginxRTMPxml():
+    if len(sys.argv) > 1:
+        # Answer yes to plugin "autoconf" capability
+        if sys.argv[1] == "autoconf":
+            print("yes")
+        # If parameter is "dump" print out API request reply
+        elif sys.argv[1] == "dump":
+            print(requestData().text)
+        # Print plugin values if argument present but is not "config"
+        elif len(sys.argv) == 1 or sys.argv[1] != "config":
+            printValues(parseData(requestData()))
+        # Reply the plugin configuration when "config" argument provided
+        elif sys.argv[1] == "config":
+            printConfig(parseData(requestData()))
+        # This should never execute, but covers eny remaining case.
+        else:
+            print((sys.argv[1]))
+    # Print plugin values if no argument present
+    else:
+        printValues(parseData(requestData()))
+
+
+# The main function / execution entry point
+if __name__ == "__main__":
+    nginxRTMPxml()

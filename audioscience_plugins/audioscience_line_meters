@@ -3,7 +3,7 @@
 ALSACARDINDEX=0
 CARD=`/usr/local/bin/hpicontrol.py -a ${ALSACARDINDEX} info | head -n 1 | awk '{print $3}' | sed 's/,*$//g'`
 
-if [ "$CARD" == "ASI5620" ] || [ "$CARD" == "5720" ]; then
+if [ "$CARD" == "ASI5620" ] || [ "$CARD" == "ASI5720" ]; then
         IN=2
         OUT=2
 elif [ "$CARD" == "ASI5640" ] || [ "$CARD" == "ASI5740" ]; then
@@ -12,9 +12,10 @@ elif [ "$CARD" == "ASI5640" ] || [ "$CARD" == "ASI5740" ]; then
 elif [ "$CARD" == "ASI5788" ]; then
         IN=8
         OUT=8
-elif [ "$CARD" == "ASI5810" ] || [ "$CARD" == "ASI5811" ] ; then
+elif [ "$CARD" == "ASI5810" ] || [ "$CARD" == "ASI5811" ]; then
         IN=1
         OUT=1
+	DIGIN=1
 else
         exit 0
 fi
@@ -30,6 +31,7 @@ graph_vlabel percent from maximum card level
 graph_info Playback and Record Line Meters
 EOM
 
+
 	for (( i=0; i<$IN; i++   ))
 	do
 		echo "line${i}_capture.label line ${i} capture"
@@ -44,8 +46,27 @@ EOM
                 echo "line${i}_playback.critical 90"
 	done
 
+	if ! [[ -z ${DIGIN+x} ]]; then
+	        for (( i=0; i<$DIGIN; i++   ))
+	        do
+	                echo "digital${i}_capture.label line ${i} capture"
+	                echo "digital${i}_capture.warning 75"
+	                echo "digital${i}_capture.critical 90"
+	        done
+	fi
+
+        if ! [[ -z ${DIGOUT+x} ]]; then
+                for (( i=0; i<$DIGOUT; i++   ))
+                do
+                        echo "digital${i}_playback.label line ${i} capture"
+                        echo "digital${i}_playback.warning 75"
+                        echo "digital${i}_playback.critical 90"
+                done
+        fi
+
         exit 0;;
 esac
+
 
 for (( i=0; i<$IN; i++   ))
 do
@@ -60,4 +81,22 @@ do
         echo -n "line${i}_playback.value "
         echo "$LEVEL"
 done
+
+if ! [[ -z ${DIGIN+x} ]]; then
+	for (( i=0; i<$DIGIN; i++   ))
+	do
+        	LEVEL=`amixer -c "${ALSACARDINDEX}" sget "Digital $i Capture Meter" 2> /dev/null | grep % | awk '{print $NF}' | sed 's/[^0-9]*//g' | awk 'NF{sum+=$1} END { if (NR > 0) print sum / NR }' | xargs printf "%.*f\n" 0`
+	        echo -n "digital${i}_capture.value "
+	        echo "$LEVEL"
+	done
+fi
+
+if ! [[ -z ${DIGOUT+x} ]]; then
+        for (( i=0; i<$DIGOUT; i++   ))
+        do
+                LEVEL=`amixer -c "${ALSACARDINDEX}" sget "Digital $i Playback Meter" 2> /dev/null | grep % | awk '{print $NF}' | sed 's/[^0-9]*//g' | awk 'NF{sum+=$1} END { if (NR > 0) print sum / NR }' | xargs printf "%.*f\n" 0`
+                echo -n "digital${i}_playback.value "
+                echo "$LEVEL"
+        done
+fi
 
