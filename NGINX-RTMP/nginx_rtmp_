@@ -11,6 +11,7 @@
 # Target NGINX server and listen port
 # Just canonical name, no http:// nor ending /, include port number if required
 host = "localhost"
+rtmpApplication = "deafult"
 # RTMP module stats location and stats file
 rtmpStatsPath = "/rtmp-stat/stat.xsl"
 # optional HTTP-auth authentication creds
@@ -93,137 +94,42 @@ def parseData(req):
 # Print munin plugin Configuration
 def printConfig(data):
     #print("DEBUG: dumping parsed dict from XML\n")
-    #pprint.pprint(data)
-
-    # Print connections dashboard plugin configuration.
-    # Iterate applications to print app labels
-    print("multigraph rtmpconnections")
-    print("graph_title RTMP Connections Summary")
+    #pprint.pprint("DEBUG: dumping parsed dict from XML\n" + data)
+    appname = rtmpApplication.replace("-", "_")
+    print("graph_title RTMP Stream Connections @ " + appname)
     print("graph_category streaming")
     print("graph_vlabel Connections (-) Publishers / Players (+))")
     print("graph_args --base 1000")
-    print("total_neg.graph no")
-    print("total.label Total")
-    print("total.negative total_neg")
     graph_order = "total_neg total"
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        graph_order += " " + appname + "_neg " + appname
-        print(appname + "_neg.graph no")
-        print(appname + ".label " + appname)
-        print(appname + ".negative " + appname + "_neg")
-    print("graph_order " + graph_order)
-
-    # Iterate again applications to print nested stream graphs configurations.
-    # Iterate streams within apps to print stream labels
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        print("\nmultigraph rtmpconnections." + appname)
-        print("graph_title RTMP Stream Connections @ " + appname)
-        print("graph_category streaming")
-        print("graph_vlabel Connections (-) Publishers / Players (+))")
-        print("graph_args --base 1000")
+    try:
         print("total_neg.graph no")
         print("total.label Total")
         print("total.negative total_neg")
-        graph_order = "total_neg total"
-        for stream, streamdata in appdata["streams"].items():
+        for stream, streamdata in data["applications"][appname]["streams"].items():
             streamname = stream.replace("-", "_")
             graph_order += " " + streamname + "_neg " + streamname
             print(streamname + "_neg.graph no")
             print(streamname + ".label " + streamname)
             print(streamname + ".negative " + streamname + "_neg")
         print("graph_order " + graph_order)
-
-    # Print traffic dashboard plugin configuration.
-    # Iterate applications to print app labels
-    print("\nmultigraph rtmptraffic")
-    print("graph_title RTMP Traffic Summary")
-    print("graph_category streaming")
-    print("graph_vlabel Bandwidth (-) In / Out (+))")
-    print("graph_args --base 1024")
-    print("total_neg.graph no")
-    print("total.label Total")
-    print("total.negative total_neg")
-    graph_order = "total_neg total"
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        graph_order += " " + appname + "_neg " + appname
-        print(appname + "_neg.graph no")
-        print(appname + ".label " + appname)
-        print(appname + ".negative " + appname + "_neg")
-    print("graph_order " + graph_order)
-
-    # Iterate again applications to print nested stream graphs configurations.
-    # Iterate streams within apps to print stream labels
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        print("\nmultigraph rtmptraffic." + appname)
-        print("graph_title RTMP Stream Traffic @ " + appname)
-        print("graph_category streaming")
-        print("graph_vlabel Bandwidth (-) In / Out (+))")
-        print("graph_args --base 1024")
-        print("total_neg.graph no")
-        print("total.label Total")
-        print("total.negative total_neg")
-        graph_order = "total_neg total"
-        for stream, streamdata in appdata["streams"].items():
-            streamname = stream.replace("-", "_")
-            graph_order += " " + streamname + "_neg " + streamname
-            print(streamname + "_neg.graph no")
-            print(streamname + ".label " + streamname)
-            print(streamname + ".negative " + streamname + "_neg")
-        print("graph_order " + graph_order)
-
+    except:
+        pass
 
 # Print munin plugin values
 def printValues(data):
     #print("DEBUG: dumping parsed dict from XML\n")
     #pprint.pprint(data)
 
-    # Print connections dashboard plugin values.
-    # Iterate applications to print app values
-    print("multigraph rtmpconnections")
-    print("total_neg.value " + str(data["Publishers"]))
-    print("total.value " + str(data["TotalClients"]))
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        print(appname + "_neg.value " + str(appdata["Publishers"]))
-        print(appname + ".value " + str(appdata["TotalClients"]))
-
-    # Iterate again applications to print nested graphs stream values.
-    # Iterate streams within apps to print stream values
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        print("\nmultigraph rtmpconnections." + appname)
-        print("total_neg.value " + str(appdata["Publishers"]))
-        print("total.value " + str(appdata["TotalClients"]))
-        for stream, streamdata in appdata["streams"].items():
+    try:
+        appname = rtmpApplication.replace("-", "_")
+        print("total_neg.value " + str(data["applications"][appname]["Publishers"]))
+        print("total.value " + str(data["applications"][appname]["TotalClients"]))
+        for stream, streamdata in data["applications"][appname]["streams"].items():
             streamname = stream.replace("-", "_")
             print(streamname + "_neg.value " + str(streamdata["Publishers"]))
             print(streamname + ".value " + str(streamdata["TotalClients"]))
-
-    # Print traffic dashboard plugin values.
-    # Iterate applications to print app values
-    print("\nmultigraph rtmptraffic")
-    print("total_neg.value " + str(data["RX"]))
-    print("total.value " + str(data["TX"]))
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        print(appname + "_neg.value " + str(appdata["RX"]))
-        print(appname + ".value " + str(appdata["TX"]))
-
-    # Iterate again applications to print nested graphs stream values.
-    # Iterate streams within apps to print stream values
-    for app, appdata in data["applications"].items():
-        appname = app.replace("-", "_")
-        print("\nmultigraph rtmptraffic." + appname)
-        print("total_neg.value " + str(appdata["RX"]))
-        print("total.value " + str(appdata["TX"]))
-        for stream, streamdata in appdata["streams"].items():
-            streamname = stream.replace("-", "_")
-            print(streamname + "_neg.value " + str(streamdata["RX"]))
-            print(streamname + ".value " + str(streamdata["TX"]))
+    except:
+        pass
 
 # Parse command line arguments and proceed accordingly
 def nginxRTMPxml():
